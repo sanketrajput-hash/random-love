@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Signal for You</title>
+<meta name="theme-color" content="#14091c">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@300;400&family=Young+Serif&family=Homemade+Apple&display=swap">
+<style>
+/* Layout: one full-screen scene at a time on a plum night sky: terminal -> particle words -> foil card -> constellation */
+:root{
+  --night:#14091c;
+  --night-2:#211029;
+  --plum:#3b1636;
+  --rose:#ff5c8a;
+  --peach:#ffb38a;
+  --milk:#fbeef2;
+  --dusk:#ab8ca6;
+  --f-display:"Young Serif", Georgia, "Times New Roman", serif;
+  --f-mono:"Martian Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --f-hand:"Homemade Apple", "Segoe Script", "Bradley Hand", cursive;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:var(--night) radial-gradient(ellipse 120% 70% at 50% 115%, var(--plum) 0%, var(--night) 62%);
+  color:var(--milk);font-family:var(--f-mono);overflow:hidden;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;
+}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--peach);outline-offset:4px}
+
+.scene{
+  position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;
+  padding-block:max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-bottom, 0px));
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  opacity:0;visibility:hidden;transition:opacity .9s ease, visibility 0s linear .9s;
+}
+.scene.on{opacity:1;visibility:visible;transition:opacity .9s ease}
+
+/* 1. terminal + thumb scanner */
+.term{width:min(100%, 420px);background:var(--night-2);border:1px solid rgba(255,92,138,.28);border-radius:14px;padding:14px 16px 18px}
+.term-head{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dusk);padding-bottom:12px;border-bottom:1px solid rgba(171,140,166,.18)}
+.term pre{margin:12px 0 0;min-height:176px;font:300 12px/1.85 var(--f-mono);white-space:pre-wrap;word-break:break-word;color:var(--milk)}
+.term pre::after{content:"\2589";color:var(--rose);animation:blink 1s steps(1) infinite}
+.term pre .warn{color:var(--rose)}
+@keyframes blink{50%{opacity:0}}
+
+.scanner{display:flex;flex-direction:column;align-items:center;gap:14px;animation:rise-in .8s ease both}
+@keyframes rise-in{from{opacity:0;transform:translateY(14px)}}
+#pad{width:156px;height:156px;padding:0;border:0;background:none;border-radius:50%;touch-action:none;cursor:pointer;transition:transform .3s ease}
+#pad svg{width:100%;height:100%;overflow:visible}
+#pad .ring-bg{fill:none;stroke:rgba(171,140,166,.2);stroke-width:3}
+#pad .ring{fill:none;stroke:var(--rose);stroke-width:3.5;stroke-linecap:round;transform:rotate(-90deg);transform-origin:60px 60px;transition:stroke-dashoffset .35s ease}
+#pad .print ellipse{fill:none;stroke:var(--dusk);stroke-width:2.2;stroke-linecap:round;transition:stroke .4s}
+#pad .beam{fill:var(--rose);opacity:0}
+#pad.holding{transform:scale(.94)}
+#pad.holding .ring{transition:none}
+#pad.holding .print ellipse{stroke:var(--milk)}
+#pad.holding .beam{opacity:.85;animation:beam .7s ease-in-out infinite alternate}
+#pad.ok .print ellipse{stroke:var(--peach)}
+#pad.ok{animation:pop .6s ease}
+@keyframes beam{from{transform:translateY(18px)}to{transform:translateY(100px)}}
+@keyframes pop{40%{transform:scale(1.12)}}
+#scan-msg{margin:0;font-size:12px;letter-spacing:.04em;color:var(--dusk);text-align:center;min-height:2.6em;max-width:30ch}
+
+/* 2. particle words */
+canvas.full{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+.hint{position:absolute;left:0;right:0;bottom:calc(92px + env(safe-area-inset-bottom, 0px));margin:0;text-align:center;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--dusk);transition:opacity .6s;pointer-events:none}
+.hint.gone{opacity:0}
+.next{
+  position:absolute;left:50%;transform:translateX(-50%);bottom:calc(28px + env(safe-area-inset-bottom, 0px));
+  padding:14px 24px;border-radius:999px;border:1px solid var(--rose);background:rgba(20,9,28,.6);
+  font-size:13px;letter-spacing:.06em;white-space:nowrap;cursor:pointer;animation:rise-in .8s ease both;
+}
+.next:active{background:var(--rose);color:var(--night)}
+
+/* 3. foil card */
+.eyebrow{margin:0;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--dusk);text-align:center}
+.card{position:relative;width:min(82vw, 330px);aspect-ratio:4/5;max-height:56vh;border-radius:18px;overflow:hidden;
+  background:linear-gradient(160deg, var(--night-2), var(--plum));box-shadow:0 30px 60px -20px rgba(255,92,138,.35)}
+.card-msg{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:14px;padding:28px}
+.card-to{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--peach)}
+#card-text{margin:0;font:400 clamp(22px, 6.6vw, 28px)/1.25 var(--f-display);text-wrap:balance}
+.card canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;transition:opacity 1s ease}
+.under{margin:0;font-size:12px;color:var(--dusk)}
+
+/* 4. constellation */
+#s-sky{justify-content:flex-start}
+.sky-top{position:relative;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center;padding-top:10vh;pointer-events:none;transition:opacity 1s}
+.sky-top h2{margin:0;font:400 clamp(30px, 9vw, 44px)/1.05 var(--f-display);text-wrap:balance}
+.sky-top p{margin:0;font-size:12px;color:var(--dusk);max-width:28ch;line-height:1.7}
+.sky-top .count{font-size:11px;letter-spacing:.2em;color:var(--peach);font-variant-numeric:tabular-nums}
+.sky-top.dim h2,.sky-top.dim p{opacity:.35}
+.sky-top.gone{opacity:0}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.reason{position:absolute;max-width:220px;text-align:center;font:400 18px/1.25 var(--f-display);color:var(--milk);
+  text-shadow:0 0 18px rgba(255,92,138,.7);animation:float 3.4s ease-out forwards}
+@keyframes float{0%{opacity:0;transform:translate(-50%,-90%) scale(.9)}15%{opacity:1;transform:translate(-50%,-140%)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-260%)}}
+.letter{position:absolute;left:max(16px, env(safe-area-inset-left, 0px));right:max(16px, env(safe-area-inset-right, 0px));
+  bottom:calc(24px + env(safe-area-inset-bottom, 0px));max-height:48%;overflow:auto;
+  display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;animation:rise-in 1s ease both}
+#letter-text{margin:0 auto;max-width:32ch;font:400 17px/1.6 var(--f-display);min-height:4.8em}
+.sig{margin:0;font:400 20px/1.6 var(--f-hand);color:var(--peach);opacity:0;transition:opacity 1.2s}
+.sig.on{opacity:1}
+#again{padding:10px 18px;border-radius:999px;border:1px solid rgba(171,140,166,.4);background:none;font-size:11px;letter-spacing:.1em;color:var(--dusk);cursor:pointer;opacity:0;transition:opacity 1s}
+#again.on{opacity:1}
+
+#flash{position:fixed;inset:0;background:var(--rose);opacity:0;pointer-events:none;z-index:5}
+
+@media (prefers-reduced-motion: reduce){
+  .scene{transition:none}
+  .reason{animation-duration:4s}
+}
+</style>
+</head>
+<body>
+
+<section class="scene on" id="s-boot">
+  <div class="term">
+    <div class="term-head"><span>love.exe</span><span id="clock">--:--</span></div>
+    <pre id="term-out"></pre>
+  </div>
+  <div class="scanner" id="scanner" hidden>
+    <button id="pad" type="button" aria-label="Press and hold to scan your thumb">
+      <svg viewBox="0 0 120 120" aria-hidden="true">
+        <defs><clipPath id="padclip"><circle cx="60" cy="60" r="46"></circle></clipPath></defs>
+        <circle class="ring-bg" cx="60" cy="60" r="54"></circle>
+        <circle class="ring" id="ring" cx="60" cy="60" r="54"></circle>
+        <g class="print" id="print"></g>
+        <g clip-path="url(#padclip)"><rect class="beam" x="10" y="0" width="100" height="3" rx="1.5"></rect></g>
+      </svg>
+    </button>
+    <p id="scan-msg">press and hold your thumb here</p>
+  </div>
+</section>
+
+<section class="scene" id="s-dots">
+  <canvas class="full" id="dots"></canvas>
+  <p class="hint" id="dots-hint">touch the dots</p>
+  <button class="next" id="dots-next" type="button" hidden>there's more &rarr;</button>
+</section>
+
+<section class="scene" id="s-card">
+  <p class="eyebrow">a small thing, wrapped in foil</p>
+  <div class="card">
+    <div class="card-msg">
+      <span class="card-to" id="card-to">to you</span>
+      <p id="card-text"></p>
+    </div>
+    <canvas id="foil"></canvas>
+  </div>
+  <p class="under">scratch it with your finger</p>
+  <button class="next" id="card-next" type="button" hidden>one last thing &rarr;</button>
+</section>
+
+<section class="scene" id="s-sky">
+  <canvas class="full" id="sky"></canvas>
+  <div class="sky-top" id="sky-top">
+    <h2>Tap the sky.</h2>
+    <p>Every star you make is one reason I love you.</p>
+    <span class="count" id="count">0 / 8</span>
+  </div>
+  <div id="labels"></div>
+  <div class="letter" id="letter" hidden>
+    <p id="letter-text"></p>
+    <p class="sig" id="sig"></p>
+    <button id="again" type="button">play it again</button>
+  </div>
+</section>
+
+<div id="flash"></div>
+
+<script>
+/* ============ EDIT THESE ============ */
+const CONFIG = {
+  herName: "Riteeka",   // her name or nickname, ~10 letters max looks best
+  fromName: "Sanket",
+  reasons: [            // one per star she taps (any count works)
+    "your hair, every single strand of it",
+    "those cheeks I could squish forever",
+    "how deeply you care for everyone around you",
+    "how smart you are, you amaze me every day",
+    "the way you look after me, even when I don't ask",
+    "your brain is honestly so attractive",
+    "and everything else. every little bit of you"
+  ],
+  cardText: "Pretty hair, squishy cheeks, the kindest heart and the smartest mind. How did I get this lucky?",
+  letter: "Riteeka, I love your hair, your cheeks, your caring heart and that brilliant mind of yours. But honestly, I love everything in you. Every part, every day. You're my favourite person in the whole world."
+};
+/* ==================================== */
+
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const TAU = Math.PI * 2;
+const DISPLAY_FONT = '"Young Serif", Georgia, serif';
+
+/* ---------- sound + haptics ---------- */
+let actx = null, hum = null;
+function audioOn(){
+  try{
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if(actx.state === "suspended") actx.resume();
+  }catch(e){}
+}
+function chime(freq, when = 0, dur = 1.4, vol = .12){
+  if(!actx) return;
+  const t = actx.currentTime + when;
+  [1, 2].forEach((m, i) => {
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = "sine"; o.frequency.value = freq * m;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol / (i * 3 + 1), t + .02);
+    g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g).connect(actx.destination);
+    o.start(t); o.stop(t + dur + .05);
+  });
+}
+const NOTES = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51, 1567.98];
+function arpeggio(idx, gap = .12){ idx.forEach((n, i) => chime(NOTES[n], i * gap, 1.8)); }
+function buzz(p){ try{ navigator.vibrate && navigator.vibrate(p); }catch(e){} }
+
+function show(id){
+  document.querySelectorAll(".scene").forEach(s => s.classList.toggle("on", s.id === id));
+}
+function flash(){
+  $("flash").animate([{opacity:0},{opacity:.85},{opacity:0}], {duration:900, easing:"ease-out"});
+}
+function sizeCanvas(c, ctx){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = c.clientWidth, h = c.clientHeight;
+  c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return [w, h];
+}
+function heartXY(t){
+  return [16 * Math.sin(t) ** 3, -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t))];
+}
+function heartPath(ctx, cx, cy, s){
+  ctx.beginPath();
+  for(let i = 0; i <= 120; i++){
+    const [x, y] = heartXY(i / 120 * TAU);
+    i ? ctx.lineTo(cx + x * s, cy + y * s) : ctx.moveTo(cx + x * s, cy + y * s);
+  }
+  ctx.closePath();
+}
+
+/* ---------- scene 1: terminal + thumb scan ---------- */
+const now = new Date();
+$("clock").textContent = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
+
+async function boot(){
+  const out = $("term-out");
+  const lines = [
+    "> booting love.exe",
+    "> scanning for nearby hearts...",
+    `> 1 found: ${CONFIG.herName}'s phone`,
+    "> reading owner...",
+    "!! cuteness above safe limits",
+    "> identity check required"
+  ];
+  await sleep(600);
+  for(const line of lines){
+    const span = document.createElement("span");
+    if(line.startsWith("!!")) span.className = "warn";
+    out.append(span);
+    for(const ch of line){ span.textContent += ch; await sleep(ch === " " ? 8 : 26); }
+    out.append("\n");
+    await sleep(420);
+  }
+  $("scanner").hidden = false;
+}
+
+const pad = $("pad"), ring = $("ring"), msg = $("scan-msg");
+const RING = TAU * 54, HOLD = 1900;
+ring.style.strokeDasharray = RING;
+ring.style.strokeDashoffset = RING;
+
+// fingerprint ridges
+(() => {
+  const ns = "http://www.w3.org/2000/svg";
+  for(let r = 6; r <= 40; r += 4.6){
+    const e = document.createElementNS(ns, "ellipse");
+    const rx = r * .8, ry = r;
+    const C = TAU * Math.sqrt((rx * rx + ry * ry) / 2);
+    e.setAttribute("cx", 60); e.setAttribute("cy", 62);
+    e.setAttribute("rx", rx); e.setAttribute("ry", ry);
+    e.setAttribute("stroke-dasharray", `${C * (.55 + Math.random() * .3)} ${C * (.05 + Math.random() * .12)}`);
+    e.setAttribute("stroke-dashoffset", C * Math.random());
+    $("print").append(e);
+  }
+})();
+
+const TEASE = [
+  "too quick. hold it like you hold my hand",
+  "longer... I need to be sure it's you",
+  "almost! don't let go this time"
+];
+let holdStart = 0, holdRaf = 0, scanned = false, tries = 0;
+
+function humStart(){
+  if(!actx) return;
+  const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
+  o.type = "triangle";
+  o.frequency.setValueAtTime(180, t);
+  o.frequency.linearRampToValueAtTime(560, t + HOLD / 1000);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(.045, t + .1);
+  o.connect(g).connect(actx.destination);
+  o.start();
+  hum = {o, g};
+}
+function humStop(){
+  if(!hum) return;
+  const {o, g} = hum, t = actx.currentTime;
+  g.gain.cancelScheduledValues(t);
+  g.gain.setValueAtTime(g.gain.value, t);
+  g.gain.linearRampToValueAtTime(0, t + .15);
+  o.stop(t + .2);
+  hum = null;
+}
+function holdTick(){
+  const p = Math.min(1, (performance.now() - holdStart) / HOLD);
+  ring.style.strokeDashoffset = RING * (1 - p);
+  if(p >= 1) return verified();
+  holdRaf = requestAnimationFrame(holdTick);
+}
+pad.addEventListener("pointerdown", e => {
+  if(scanned) return;
+  e.preventDefault();
+  audioOn();
+  try{ pad.setPointerCapture(e.pointerId); }catch(err){}
+  holdStart = performance.now();
+  pad.classList.add("holding");
+  msg.textContent = "scanning...";
+  humStart(); buzz(15);
+  holdTick();
+});
+function cancelHold(){
+  if(scanned || !holdStart) return;
+  cancelAnimationFrame(holdRaf);
+  holdStart = 0;
+  pad.classList.remove("holding");
+  ring.style.strokeDashoffset = RING;
+  humStop();
+  msg.textContent = TEASE[Math.min(tries++, TEASE.length - 1)];
+}
+pad.addEventListener("pointerup", cancelHold);
+pad.addEventListener("pointercancel", cancelHold);
+pad.addEventListener("contextmenu", e => e.preventDefault());
+
+function verified(){
+  scanned = true;
+  humStop();
+  pad.classList.remove("holding");
+  pad.classList.add("ok");
+  msg.textContent = "match 100%. it's really you.";
+  buzz([40, 60, 40, 60, 140]);
+  arpeggio([0, 2, 4, 5]);
+  setTimeout(() => { flash(); show("s-dots"); startDots(); }, 1200);
+}
+
+/* ---------- scene 2: particle words ---------- */
+const dc = $("dots"), dx = dc.getContext("2d");
+const HEART = "__heart__";
+const SHAPES = [CONFIG.herName, "hi cutie", HEART, "I love\nyou", "all of\nyou"];
+let DW = 0, DH = 0, parts = [], dotsRunning = false, shapeIdx = 0;
+const pointer = {x: -1e4, y: -1e4};
+
+function samplePoints(shape, w, h){
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const g = c.getContext("2d", {willReadFrequently: true});
+  g.fillStyle = "#fff"; g.textAlign = "center"; g.textBaseline = "middle";
+  const cy = h * .45;
+  if(shape === HEART){
+    heartPath(g, w / 2, cy, Math.min(w * .8 / 32, h * .45 / 29));
+    g.fill();
+  }else{
+    const lines = shape.split("\n");
+    let size = Math.min(h * .2, 170);
+    g.font = `${size}px ${DISPLAY_FONT}`;
+    const widest = Math.max(...lines.map(l => g.measureText(l).width));
+    if(widest > w * .86) size *= w * .86 / widest;
+    g.font = `${size}px ${DISPLAY_FONT}`;
+    lines.forEach((l, i) => g.fillText(l, w / 2, cy + (i - (lines.length - 1) / 2) * size * 1.05));
+  }
+  const data = g.getImageData(0, 0, w, h).data, pts = [], gap = w < 500 ? 4 : 6;
+  for(let y = 0; y < h; y += gap)
+    for(let x = 0; x < w; x += gap)
+      if(data[(y * w + x) * 4 + 3] > 128) pts.push([x, y]);
+  for(let i = pts.length - 1; i > 0; i--){
+    const j = Math.random() * (i + 1) | 0;
+    [pts[i], pts[j]] = [pts[j], pts[i]];
+  }
+  return pts;
+}
+function setShape(shape){
+  const pts = samplePoints(shape, DW, DH);
+  parts.forEach((p, i) => {
+    const t = pts.length ? pts[i % pts.length] : [DW / 2, DH / 2];
+    p.tx = t[0] + (Math.random() - .5) * 1.5;
+    p.ty = t[1] + (Math.random() - .5) * 1.5;
+  });
+}
+async function startDots(){
+  [DW, DH] = sizeCanvas(dc, dx);
+  try{ await document.fonts.load(`100px ${DISPLAY_FONT}`); }catch(e){}
+  const N = DW < 500 ? 950 : 1700;
+  parts = Array.from({length: N}, () => {
+    const a = Math.random() * TAU, sp = 4 + Math.random() * 16;
+    const hue = Math.random() < .2 ? 24 : 330 + Math.random() * 25;
+    return {x: DW / 2, y: DH * .45, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      tx: DW / 2, ty: DH * .45, r: .7 + Math.random() * 1.2, col: `hsl(${hue} 100% 70%)`};
+  });
+  parts.forEach(p => { p.tx = p.x + p.vx * 18; p.ty = p.y + p.vy * 18; });
+  dotsRunning = true;
+  requestAnimationFrame(dotsFrame);
+  await sleep(900);
+  for(shapeIdx = 0; shapeIdx < SHAPES.length; shapeIdx++){
+    setShape(SHAPES[shapeIdx]);
+    chime(NOTES[[0, 2, 4, 7, 8][shapeIdx]], 0, 2, .07);
+    await sleep(3600);
+  }
+  shapeIdx = SHAPES.length - 1;
+  $("dots-next").hidden = false;
+}
+function dotsFrame(){
+  if(!dotsRunning) return;
+  dx.globalCompositeOperation = "source-over";
+  dx.fillStyle = "rgba(20,9,28,.3)";
+  dx.fillRect(0, 0, DW, DH);
+  dx.globalCompositeOperation = "lighter";
+  const R = DW < 500 ? 70 : 110;
+  for(const p of parts){
+    p.vx += (p.tx - p.x) * .018;
+    p.vy += (p.ty - p.y) * .018;
+    const ex = p.x - pointer.x, ey = p.y - pointer.y, d2 = ex * ex + ey * ey;
+    if(d2 < R * R){
+      const d = Math.sqrt(d2) || 1, f = (R - d) / R * 3.4;
+      p.vx += ex / d * f; p.vy += ey / d * f;
+    }
+    p.vx *= .88; p.vy *= .88;
+    p.x += p.vx; p.y += p.vy;
+    dx.fillStyle = p.col;
+    dx.fillRect(p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
+  }
+  requestAnimationFrame(dotsFrame);
+}
+function movePointer(e){
+  const r = dc.getBoundingClientRect();
+  pointer.x = e.clientX - r.left; pointer.y = e.clientY - r.top;
+  $("dots-hint").classList.add("gone");
+}
+dc.addEventListener("pointerdown", e => { audioOn(); movePointer(e); buzz(8); });
+dc.addEventListener("pointermove", e => { if(e.pointerType === "mouse" || e.buttons) movePointer(e); });
+["pointerup", "pointercancel", "pointerleave"].forEach(ev =>
+  dc.addEventListener(ev, () => { pointer.x = pointer.y = -1e4; }));
+window.addEventListener("resize", () => {
+  if(!dotsRunning) return;
+  [DW, DH] = sizeCanvas(dc, dx);
+  setShape(SHAPES[Math.min(shapeIdx, SHAPES.length - 1)]);
+});
+$("dots-next").addEventListener("click", () => {
+  dotsRunning = false;
+  show("s-card");
+  startCard();
+});
+
+/* ---------- scene 3: scratch card ---------- */
+function startCard(){
+  $("card-to").textContent = "to " + CONFIG.herName;
+  $("card-text").textContent = CONFIG.cardText;
+  const c = $("foil"), g = c.getContext("2d", {willReadFrequently: true});
+  const [w, h] = sizeCanvas(c, g);
+  const grad = g.createLinearGradient(0, 0, w, h);
+  grad.addColorStop(0, "#e7b2c1"); grad.addColorStop(.35, "#fff1f4");
+  grad.addColorStop(.6, "#d695ab"); grad.addColorStop(1, "#f5cdb5");
+  g.fillStyle = grad; g.fillRect(0, 0, w, h);
+  for(let i = 0; i < 260; i++){
+    g.fillStyle = `rgba(255,255,255,${Math.random() * .6})`;
+    g.fillRect(Math.random() * w, Math.random() * h, 1.5, 1.5);
+  }
+  g.strokeStyle = "rgba(110,35,70,.45)"; g.lineWidth = 1.5;
+  heartPath(g, w / 2, h / 2 - 22, 1.3); g.stroke();
+  g.fillStyle = "rgba(110,35,70,.6)";
+  g.font = `400 11px "Martian Mono", monospace`;
+  g.textAlign = "center";
+  g.fillText("S C R A T C H   H E R E", w / 2, h / 2 + 26);
+
+  g.globalCompositeOperation = "destination-out";
+  g.lineCap = g.lineJoin = "round";
+  g.lineWidth = 42;
+  let last = null, moves = 0, cleared = false;
+  const pt = e => { const r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  const dab = (a, b) => {
+    g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0] + .01, b[1]); g.stroke();
+    if(++moves % 6 === 0) buzz(4);
+    if(moves % 14 === 0) check();
+  };
+  function check(){
+    if(cleared) return;
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    let clear = 0, total = 0;
+    for(let i = 3; i < d.length; i += 4 * 23){ total++; if(d[i] < 60) clear++; }
+    if(clear / total > .55){
+      cleared = true;
+      c.style.opacity = 0;
+      c.style.pointerEvents = "none";
+      arpeggio([2, 4, 5, 7, 8], .1);
+      buzz([30, 40, 30]);
+      setTimeout(() => { $("card-next").hidden = false; }, 1400);
+    }
+  }
+  c.onpointerdown = e => {
+    audioOn();
+    try{ c.setPointerCapture(e.pointerId); }catch(err){}
+    last = pt(e); dab(last, last);
+  };
+  c.onpointermove = e => { if(!last) return; const p = pt(e); dab(last, p); last = p; };
+  c.onpointerup = c.onpointercancel = () => { last = null; check(); };
+}
+$("card-next").addEventListener("click", () => { show("s-sky"); startSky(); });
+
+/* ---------- scene 4: constellation ---------- */
+const sc = $("sky"), sx = sc.getContext("2d");
+let SW = 0, SH = 0, bg = [], stars = [], outline = [], phase = "tap", heartAt = 0, shoot = null;
+$("count").textContent = `0 / ${CONFIG.reasons.length}`;
+
+function startSky(){
+  [SW, SH] = sizeCanvas(sc, sx);
+  bg = Array.from({length: Math.round(SW * SH / 2300)}, () => ({
+    x: Math.random() * SW, y: Math.random() * SH, r: Math.random() * 1.1 + .2,
+    tw: Math.random() * TAU, sp: .6 + Math.random() * 1.8
+  }));
+  requestAnimationFrame(skyFrame);
+}
+sc.addEventListener("pointerdown", e => {
+  if(phase !== "tap") return;
+  audioOn();
+  const r = sc.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  const i = stars.length;
+  stars.push({x, y, tx: x, ty: y, born: performance.now(), r: 2.6});
+  chime(NOTES[i % NOTES.length], 0, 2, .1);
+  buzz(12);
+  const el = document.createElement("div");
+  el.className = "reason";
+  el.textContent = CONFIG.reasons[i];
+  el.style.left = Math.max(120, Math.min(SW - 120, x)) + "px";
+  el.style.top = Math.max(120, y) + "px";
+  $("labels").append(el);
+  setTimeout(() => el.remove(), 3500);
+  $("count").textContent = `${stars.length} / ${CONFIG.reasons.length}`;
+  $("sky-top").classList.add("dim");
+  if(stars.length >= CONFIG.reasons.length){ phase = "wait"; setTimeout(formHeart, 2600); }
+});
+
+function formHeart(){
+  $("sky-top").classList.add("gone");
+  const n = Math.max(24, stars.length * 3);
+  const s = Math.min(SW * .78 / 32, SH * .34 / 29), cx = SW / 2, cy = SH * .3;
+  const spots = Array.from({length: n}, (_, k) => {
+    const [x, y] = heartXY(k / n * TAU);
+    return [cx + x * s, cy + y * s];
+  });
+  outline = new Array(n).fill(null);
+  const step = n / stars.length;
+  stars.forEach((st, i) => {
+    const k = Math.round(i * step) % n;
+    st.tx = spots[k][0]; st.ty = spots[k][1];
+    outline[k] = st;
+  });
+  const t0 = performance.now();
+  for(let k = 0; k < n; k++){
+    if(!outline[k]) outline[k] = {x: spots[k][0], y: spots[k][1], tx: spots[k][0], ty: spots[k][1],
+      born: t0 + 500 + Math.random() * 900, r: 1.6};
+  }
+  phase = "heart"; heartAt = t0;
+  arpeggio([0, 2, 4, 5, 7, 8], .16);
+  buzz([20, 80, 20, 80, 200]);
+  setTimeout(writeLetter, 4200);
+}
+async function writeLetter(){
+  $("letter").hidden = false;
+  const out = $("letter-text");
+  for(const ch of CONFIG.letter){ out.textContent += ch; await sleep(ch === "." ? 320 : 34); }
+  $("sig").textContent = "— " + CONFIG.fromName;
+  $("sig").classList.add("on");
+  chime(NOTES[5], 0, 2.4, .09);
+  await sleep(1400);
+  $("again").classList.add("on");
+}
+$("again").addEventListener("click", () => location.reload());
+
+function drawStar(x, y, r, a){
+  sx.globalAlpha = a;
+  sx.shadowBlur = 14; sx.shadowColor = "#ff5c8a";
+  sx.fillStyle = "#fff4f7";
+  sx.beginPath(); sx.arc(x, y, r, 0, TAU); sx.fill();
+  sx.shadowBlur = 0;
+  sx.strokeStyle = "rgba(255,200,215,.5)"; sx.lineWidth = .8;
+  sx.beginPath(); sx.moveTo(x - r * 3.5, y); sx.lineTo(x + r * 3.5, y);
+  sx.moveTo(x, y - r * 3.5); sx.lineTo(x, y + r * 3.5); sx.stroke();
+  sx.globalAlpha = 1;
+}
+function skyFrame(t){
+  sx.clearRect(0, 0, SW, SH);
+  for(const b of bg){
+    sx.globalAlpha = .25 + .75 * Math.abs(Math.sin(t / 1000 * b.sp + b.tw));
+    sx.fillStyle = "#f3dfe8";
+    sx.fillRect(b.x, b.y, b.r * 2, b.r * 2);
+  }
+  sx.globalAlpha = 1;
+
+  if(!shoot && Math.random() < .005){
+    shoot = {x: Math.random() * SW * .8 + SW * .2, y: Math.random() * SH * .4, vx: -7 - Math.random() * 4, vy: 3 + Math.random() * 2, life: 1};
+  }
+  if(shoot){
+    const g = sx.createLinearGradient(shoot.x, shoot.y, shoot.x - shoot.vx * 10, shoot.y - shoot.vy * 10);
+    g.addColorStop(0, `rgba(255,240,245,${shoot.life})`); g.addColorStop(1, "rgba(255,240,245,0)");
+    sx.strokeStyle = g; sx.lineWidth = 1.6;
+    sx.beginPath(); sx.moveTo(shoot.x, shoot.y); sx.lineTo(shoot.x - shoot.vx * 10, shoot.y - shoot.vy * 10); sx.stroke();
+    shoot.x += shoot.vx; shoot.y += shoot.vy; shoot.life -= .015;
+    if(shoot.life <= 0) shoot = null;
+  }
+
+  if(phase === "heart"){
+    const n = outline.length, p = Math.max(0, Math.min(1, (t - heartAt - 1500) / 2600)) * n;
+    sx.strokeStyle = "rgba(255,170,195,.55)"; sx.lineWidth = 1;
+    sx.beginPath();
+    for(let k = 0; k < Math.ceil(p); k++){
+      const a = outline[k], b = outline[(k + 1) % n], f = Math.min(1, p - k);
+      sx.moveTo(a.x, a.y);
+      sx.lineTo(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f);
+    }
+    sx.stroke();
+  }
+  const pulse = phase === "heart" ? 1 + .15 * Math.sin(t / 380) : 1;
+  const list = phase === "heart" ? outline : stars;
+  for(const st of list){
+    if(t < st.born) continue;
+    st.x += (st.tx - st.x) * .045; st.y += (st.ty - st.y) * .045;
+    const a = Math.min(1, (t - st.born) / 500);
+    drawStar(st.x, st.y, st.r * pulse * (1 + (1 - a) * 2), a);
+  }
+  requestAnimationFrame(skyFrame);
+}
+
+boot();
+</script>
+</body>
+</html>
